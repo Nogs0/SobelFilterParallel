@@ -103,13 +103,15 @@ int main(int argc, char *argv[])
     unsigned char *dadosDaFaixaValidos = meuPedacoDaImagemProcessada + (temLinhaCima * width);
     int qtdBytesValidos = minhasLinhas * width;
 
-    if (rank == 0)
+    if (rank > 0)
     {
+        MPI_Send(dadosDaFaixaValidos, qtdBytesValidos, MPI_UNSIGNED_CHAR, 0, 1, MPI_COMM_WORLD);
+    }
+    else {
         memcpy(imagemFinal, dadosDaFaixaValidos, qtdBytesValidos);
 
         for (int i = 1; i < size; i++)
         {
-            // Recebe direto na posição correta da imagem final
             MPI_Recv(imagemFinal + offsetParaInicio[i], quantosBytesEuProcesso[i], MPI_UNSIGNED_CHAR, i, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
 
@@ -119,11 +121,6 @@ int main(int argc, char *argv[])
         salvarImagemPgm("saida_mpi.pgm", imagemFinal, width, height);
         free(imagemEntrada);
         free(imagemFinal);
-    }
-    else
-    {
-        // Escravos enviam apenas a parte útil
-        MPI_Send(dadosDaFaixaValidos, qtdBytesValidos, MPI_UNSIGNED_CHAR, 0, 1, MPI_COMM_WORLD);
     }
 
 
