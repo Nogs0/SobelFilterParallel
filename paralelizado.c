@@ -42,9 +42,10 @@ int main(int argc, char *argv[])
 
     printf("3. CALCULO DAS LINHAS QUE CADA PROCESSO VAI EXECUTAR P%d\n", rank);
 
-    int minhasLinhas = height / size;
+    int qtdLinhasBase = height / size;
     int restoLinhas = height % size;
 
+    int minhasLinhas = qtdLinhasBase;
     if (rank == size - 1) // se for o ultimo fica com o resto
         minhasLinhas += restoLinhas;
 
@@ -54,7 +55,11 @@ int main(int argc, char *argv[])
     int offsetInicial = 0;
     for (int i = 0; i < size; i++)
     {
-        quantosBytesEuProcesso[i] = minhasLinhas * width;
+        int linhasDoProcessoAtual = qtdLinhasBase;
+        if (i == size - 1) 
+            linhasDoProcessoAtual += restoLinhas;
+
+        quantosBytesEuProcesso[i] = linhasDoProcessoAtual * width;
         offsetParaInicio[i] = offsetInicial;
         offsetInicial += quantosBytesEuProcesso[i];
     }
@@ -122,7 +127,6 @@ int main(int argc, char *argv[])
         free(imagemEntrada);
         free(imagemFinal);
     }
-
 
     // --- Limpeza ---
     free(meuPedacoDaImagemOriginal);
