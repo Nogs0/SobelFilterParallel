@@ -40,47 +40,37 @@ int main(int argc, char *argv[])
     // MPI_Barrier(MPI_COMM_WORLD);
     double t1 = MPI_Wtime();
 
-    int linhasPorProcesso = height / size;
+    printf("3. CALCULO DAS LINHAS QUE CADA PROCESSO VAI EXECUTAR P%d\n", rank);
+
+    int minhasLinhas = height / size;
     int restoLinhas = height % size;
 
-    int minhasLinhas = linhasPorProcesso;
     if (rank == size - 1) // se for o ultimo fica com o resto
-    {
         minhasLinhas += restoLinhas;
-    }
-
-    printf("3. CALCULO DAS LINHAS QUE CADA PROCESSO VAI EXECUTAR H = %d - P%d\n", minhasLinhas, rank);
 
     int *quantosBytesEuProcesso = (int *)malloc(size * sizeof(int));
-    int *offsetParaInicio = (int *)malloc(size * sizeof(int));
+    int *offsetParaInicio =  (int *)malloc(size * sizeof(int));
 
     int offsetInicial = 0;
-    
     for (int i = 0; i < size; i++)
     {
-        int l = linhasPorProcesso;
-        if (i == size - 1) // se for o ultimo soma o resto das linhas
-        {
-            l += restoLinhas;
-        }
-
-        quantosBytesEuProcesso[i] = l * width;
+        quantosBytesEuProcesso[i] = minhasLinhas * width;
         offsetParaInicio[i] = offsetInicial;
         offsetInicial += quantosBytesEuProcesso[i];
     }
 
-    int temLinhaCima = (rank > 0);         // se for o mestre n tem linha acima
+    int temLinhaCima = (rank > 0); // se for o mestre n tem linha acima
     int temLinhaBaixo = (rank < size - 1); // se for o ultimo n tem linha abaixo
 
     int alturaLocal = minhasLinhas + temLinhaCima + temLinhaBaixo;
 
-    unsigned char *meuBuffer = (unsigned char *)malloc(alturaLocal * width);
-    unsigned char *meuBufferComLinhasExtras = (unsigned char *)malloc(alturaLocal * width);
+    unsigned char *meuPedacoDaImagemOriginal = (unsigned char *)malloc(alturaLocal * width);
+    unsigned char *meuPedacoDaImagemProcessada = (unsigned char *)malloc(alturaLocal * width);
 
     if (rank == 0)
     {
-        int linhasParaCopiar = minhasLinhas + temLinhaBaixo;
-        memcpy(meuBuffer, imagemEntrada, linhasParaCopiar * width);
+        // copia a parte do mestre
+        memcpy(meuPedacoDaImagemOriginal, imagemEntrada, alturaLocal * width);
 
         for (int i = 1; i < size; i++) //ignora o 0
         {
@@ -90,26 +80,27 @@ int main(int argc, char *argv[])
                 lEscravo += restoLinhas;
             }
 
-            int offSetOriginal = offsetParaInicio[i] - width;
-            int qtdLinhasParEnvio = lEscravo + 2; // soma dos vizinhos
+            int offsetComRecuo = offsetParaInicio[i] - width; // recua uma linha para pegar o vizinho de cima
+            int qtdLinhasParaEnvio = lEscravo + 2; // soma dos vizinhos de cima e baixo
 
             if (i == size - 1) // remove vizinho de baixo do ultimo
-                qtdLinhasParEnvio--;
+                qtdLinhasParaEnvio--;
+
             printf("4. ENVIO DE DADOS PARA OS ESCRAVOS - P0 (MESTRE)\n");
-            MPI_Send(imagemEntrada + offSetOriginal, qtdLinhasParEnvio * width, MPI_UNSIGNED_CHAR, i, 0, MPI_COMM_WORLD);
+            MPI_Send(imagemEntrada + offsetComRecuo, qtdLinhasParaEnvio * width, MPI_UNSIGNED_CHAR, i, 0, MPI_COMM_WORLD);
         }
     }
     else
     {
         printf("5. RECEBIMENTO DE DADOS VINDOS DO P0 (MESTRE) - P%d\n", rank);
-        MPI_Recv(meuBuffer, alturaLocal * width, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(meuPedacoDaImagemOriginal, alturaLocal * width, MPI_UNSIGNED_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
     printf("6. EXECUCAO DO SOBEL - P%d\n", rank);
 
-    sobelParcial(meuBuffer, meuBufferComLinhasExtras, width, alturaLocal);
+    sobelParcial(meuPedacoDaImagemOriginal, meuPedacoDaImagemProcessada, width, alturaLocal);
 
-    unsigned char *dadosDaFaixaValidos = meuBufferComLinhasExtras + (temLinhaCima * width);
+    unsigned char *dadosDaFaixaValidos = meuPedacoDaImagemProcessada + (temLinhaCima * width);
     int qtdBytesValidos = minhasLinhas * width;
 
     if (rank == 0)
@@ -137,8 +128,8 @@ int main(int argc, char *argv[])
 
 
     // --- Limpeza ---
-    free(meuBuffer);
-    free(meuBufferComLinhasExtras);
+    free(meuPedacoDaImagemOriginal);
+    free(meuPedacoDaImagemProcessada);
     free(quantosBytesEuProcesso);
     free(offsetParaInicio);
 
